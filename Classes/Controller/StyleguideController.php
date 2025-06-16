@@ -10,11 +10,14 @@ use Sitegeist\FluidComponentsLinter\Service\CodeQualityService;
 use Sitegeist\FluidComponentsLinter\Service\ConfigurationService;
 use Sitegeist\FluidStyleguide\Domain\Repository\ComponentRepository;
 use Sitegeist\FluidStyleguide\Event\PostProcessComponentViewEvent;
+use Sitegeist\FluidStyleguide\Event\PreProcessComponentViewEvent;
 use Sitegeist\FluidStyleguide\Service\ComponentDownloadService;
 use Sitegeist\FluidStyleguide\Service\StyleguideConfigurationManager;
 use SMS\FluidComponents\Utility\ComponentLoader;
 use TYPO3\CMS\Core\EventDispatcher\EventDispatcher;
 use TYPO3\CMS\Core\Http\HtmlResponse;
+use TYPO3\CMS\Core\Http\ImmediateResponseException;
+use TYPO3\CMS\Core\Http\JsonResponse;
 use TYPO3\CMS\Core\Http\Response;
 use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
@@ -38,6 +41,12 @@ class StyleguideController
     {
         $allComponents = $this->componentRepository->findWithFixtures();
         $componentPackages = $this->groupComponentsByPackage($allComponents);
+
+        // if json request, return JSON response
+        $accept = $this->request->getHeaderLine('Accept');
+        if (str_starts_with($accept, 'application/json')) {
+            throw new ImmediateResponseException(new JsonResponse($allComponents));
+        }
 
         $this->view->assignMultiple([
             'navigation' => $allComponents,
@@ -127,10 +136,13 @@ class StyleguideController
             'fixtureData' => $formData
         ]);
 
+        $eventDispatcher = $this->container->get(EventDispatcher::class);
+
+        $eventDispatcher->dispatch(new PreProcessComponentViewEvent($component, $fixture, $formData, $this->view));
+
         $renderedView = $this->view->render('Styleguide/Component');
 
         $event = new PostProcessComponentViewEvent($component, $fixture, $formData, $renderedView);
-        $eventDispatcher = $this->container->get(EventDispatcher::class);
         $event = $eventDispatcher->dispatch($event);
 
         $renderedView = $event->getRenderedView();
