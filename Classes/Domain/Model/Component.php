@@ -197,9 +197,19 @@ class Component implements JsonSerializable
                 'escape' => $argument->getEscape(),
             ];
         }
+
+        $extensionKey = '';
+        foreach($this->name->getPackage()->getExtensions() as $extension) {
+            if(str_starts_with($this->location->getDirectory(), realpath($extension->getPackagePath()))) {
+                $extensionKey = $extension->getPackageKey();
+                break;
+            }
+        }
+
         return [
             'identifier' => $this->name->getIdentifier(),
             'location' => $this->location->getFilePath(),
+            'extensionKey' => $extensionKey,
             'fixtures' => $this->getFixtures(),
             'documentation' => $this->getDocumentation(),
             'arguments' => $arguments,
